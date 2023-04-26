@@ -191,10 +191,10 @@ void convert_to_binary_char(int a, char *A, int length)
   // convert the instructions to the proper BIT format.
 
   // Convert integer to 2's complement BIT representation
-  //  Note: A[0] is least significant bit and A[31] is most significant bit
+  //  Note: A[0] is most significant bit and A[31] is least significant bit
   if (a >= 0)
   {
-    for (int i = 0; i < length; ++i)
+    for (int i = length - 1; i >= 0; --i)
     {
       A[i] = (char)(a % 2 == 1);
       a /= 2;
@@ -203,7 +203,7 @@ void convert_to_binary_char(int a, char *A, int length)
   else
   {
     a += 1;
-    for (int i = 0; i < length; ++i)
+    for (int i = length - 1; i >= 0; --i)
     {
       A[i] = (char)(a % 2 == 0);
       a /= 2;
@@ -231,6 +231,74 @@ int binary_to_integer(BIT *A)
 
 // TODO: Implement any helper functions to assist with parsing
 
+void convert_register_name(char *regname, char *regbin)
+{
+  if (!strcmp(regname, "zero"))
+    strcpy(regbin, "00000");
+  else if (!strcmp(regname, "ra"))
+    strcpy(regbin, "11101");
+  else if (!strcmp(regname, "sp"))
+    strcpy(regbin, "11111");
+  else if (regname[0] == 'v')
+    convert_to_binary_char((int)(regname[1] - '0') + 2, regbin, 5);
+  else if (regname[0] == 'a')
+    convert_to_binary_char((int)(regname[1] - '0') + 4, regbin, 5);
+  else if (regname[0] == 't')
+    convert_to_binary_char((int)(regname[1] - '0') + 8, regbin, 5);
+  else if (regname[0] == 's')
+    convert_to_binary_char((int)(regname[1] - '0') + 16, regbin, 5);
+
+  if (regbin[0] < 2)
+    return;
+  for (int i = 0; i < 5; i++)
+  {
+    regbin[i] = regbin[i] - '0';
+  }
+}
+
+void convert_instruction_opcode(char *instruction, char *op)
+{
+  // Not needed for R-type
+  if (instruction == "lw")
+    strcpy(op, "100011");
+  else if (!strcmp(instruction, "sw"))
+    strcpy(op, "101011");
+  else if (!strcmp(instruction, "beq"))
+    strcpy(op, "000100");
+  else if (!strcmp(instruction, "addi"))
+    strcpy(op, "001000");
+  else if (!strcmp(instruction, "j"))
+    strcpy(op, "000010");
+  else if (!strcmp(instruction, "jal"))
+    strcpy(op, "000011");
+  else if (!strcmp(instruction, "jr"))
+    strcpy(op, "000000");
+
+  for (int i = 0; i < 6; i++)
+  {
+    op[i] = op[i] - '0';
+  }
+}
+void convert_instruction_funct(char *instruction, char *funct)
+{
+  // Only for R-type Instructions
+  if (instruction == "and")
+    strcpy(funct, "100100");
+  else if (!strcmp(instruction, "or"))
+    strcpy(funct, "100101");
+  else if (!strcmp(instruction, "add"))
+    strcpy(funct, "100000");
+  else if (!strcmp(instruction, "sub"))
+    strcpy(funct, "100010");
+  else if (!strcmp(instruction, "slt"))
+    strcpy(funct, "101010");
+
+  for (int i = 0; i < 6; i++)
+  {
+    funct[i] = funct[i] - '0';
+  }
+}
+
 int get_instructions(BIT Instructions[][32])
 {
   char line[256] = {0};
@@ -249,6 +317,98 @@ int get_instructions(BIT Instructions[][32])
     // - Convert immediate field and jump address field to binary
     // - Use registers to get rt, rd, rs fields
     // Note: I parse everything as strings, then convert to BIT array at end
+
+    // Possible instruction fields
+    char op[6] = {0}; // Default to 0
+    char rs[5] = {0};
+    char rt[5] = {0};
+    char rd[5] = {0};
+    char immediate[16] = {0};
+    char address[26] = {0};
+    char shamt[5] = {0};
+    char funct[6] = {0};
+
+    // Get Instruction
+    char instruction[16];
+    sscanf(line, "%s", instruction);
+    // IF Instruction is I-type:
+    if (!strcmp(instruction, "lw") || !strcmp(instruction, "sw") || !strcmp(instruction, "beq") || !strcmp(instruction, "addi"))
+    {
+      // Fields as strings to be converted
+      char reg1[64];
+      char reg2[64];
+      int immediate_int;
+
+      sscanf(line, "%s %s %s %d", instruction, reg1, reg2, &immediate_int); // Read in string
+      convert_instruction_opcode(instruction, op);                          // Set Opcode
+      // Set source and dest regs
+      convert_register_name(reg1, rs);
+      convert_register_name(reg2, rt);
+      convert_to_binary_char(immediate_int, immediate, 16); // Set Address
+
+      // Combine all fields and append to instructions
+      for (int i = 0; i < 6; i++)
+        Instructions[instruction_count][i] = op[i];
+      for (int i = 6; i < 10; i++)
+        Instructions[instruction_count][i] = rt[i - 6];
+      for (int i = 11; i < 16; i++)
+        Instructions[instruction_count][i] = rs[i - 11];
+      for (int i = 16; i < 32; i++)
+        Instructions[instruction_count][i] = immediate[i - 16];
+    }
+    // Special case for jr ra (can be hardcoded)
+    else if (!strcmp(instruction, "jr"))
+    {
+      for (int i = 0; i < 27; i++)
+        Instructions[instruction_count][i] = FALSE;
+      for (int i = 27; i < 32; i++)
+        Instructions[instruction_count][i] = TRUE;
+    }
+    // IF Instruction is J-type (other than jr):
+    else if (!strcmp(instruction, "j") || !strcmp(instruction, "jal"))
+    {
+      int address_int;
+      sscanf(line, "%s %d", instruction, &address_int);
+      convert_instruction_opcode(instruction, op);
+      convert_to_binary_char(address_int, address, 26);
+      // Combine all fields and append to instructions
+      for (int i = 0; i < 6; i++)
+        Instructions[instruction_count][i] = op[i];
+      for (int i = 6; i < 32; i++)
+        Instructions[instruction_count][i] = address[i - 6];
+    }
+    // IF Instruction is R-type:
+    else
+    {
+      // Fields as strings to be converted
+      char reg1[64];
+      char reg2[64];
+      char reg3[64];
+
+      sscanf(line, "%s %s %s %s", instruction, reg1, reg2, reg3); // Read in string
+      // Set regs
+      convert_register_name(reg1, rs);
+      convert_register_name(reg2, rt);
+      convert_register_name(reg3, rd);
+      // Op-code is 000000 for all r-type
+      convert_instruction_funct(instruction, funct);
+
+      // Combine all fields and append to instructions
+      for (int i = 0; i < 6; i++)
+        Instructions[instruction_count][i] = op[i];
+      for (int i = 6; i < 11; i++)
+        Instructions[instruction_count][i] = rt[i - 6];
+      for (int i = 11; i < 16; i++)
+        Instructions[instruction_count][i] = rd[i - 11];
+      for (int i = 16; i < 21; i++)
+        Instructions[instruction_count][i] = rs[i - 16];
+      for (int i = 21; i < 26; i++)
+        Instructions[instruction_count][i] = shamt[i - 21];
+      for (int i = 26; i < 32; i++)
+        Instructions[instruction_count][i] = funct[i - 26];
+    }
+
+    instruction_count++;
   }
 
   return instruction_count;
