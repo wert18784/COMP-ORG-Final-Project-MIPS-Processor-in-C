@@ -427,7 +427,6 @@ int get_instructions(BIT Instructions[][32])
       for (int i = 26; i < 32; i++)
         Instructions[instruction_count][i] = funct[i - 26];
     }
-
     instruction_count++;
   }
 
@@ -567,7 +566,7 @@ void adder1(BIT A, BIT B, BIT CarryIn, BIT *CarryOut, BIT *Sum)
   *CarryOut = or_gate(y0, y1);
 }
 
-void ALU1(BIT *ALUControl, BIT *A, BIT *B, BIT *CarryIn, BIT *Less, BIT *Zero, BIT *Result, BIT *CarryOut, BIT *Set)
+void ALU1(BIT *ALUControl, BIT A, BIT B, BIT CarryIn, BIT Less, BIT *Zero, BIT *Result, BIT *CarryOut, BIT *Set)
 {
   BIT Op3 = ALUControl[3];
   BIT Op2 = ALUControl[2];
@@ -607,10 +606,10 @@ void ALU(BIT *ALUControl, BIT *Input1, BIT *Input2, BIT *Zero, BIT *Result)
   BIT *tmpZero2;
   for (int i = 1; i < 32; i++)
   {
-    ALU1(Input1[i], Input2[i], CarryIn, FALSE, tmpZero2, Op0, Op1, &Result[i], &CarryIn, &Set);
+    ALU1(Input1[i], Input2[i], CarryIn, FALSE, tmpZero2, ALUControl, &Result[i], &CarryIn, &Set);
     tmpZero1 = and_gate(tmpZero1, *tmpZero2);
   }
-  ALU1(Input1[0], Input2[0], CarryInFirst, Set, tmpZero2, Op0, Op1, &Result[0], &CarryIn, &Set);
+  ALU1(Input1[0], Input2[0], CarryInFirst, Set, tmpZero2, ALUControl, &Result[0], &CarryIn, &Set);
   tmpZero1 = and_gate(tmpZero1, *tmpZero2);
 
   // Calculate Zero
