@@ -506,14 +506,16 @@ void Control(BIT *OpCode,
   BIT Op1 = OpCode[4];
   BIT Op0 = OpCode[5];
 
-  *RegDst = !Op1;
-  *ALUSrc = Op1;
-  *MemToReg = (!Op3) && (!Op2);
-  *MemRead = (!Op3) && Op1;
-  *MemWrite = Op2 && Op0 || Op2 && Op1 || Op3 || Op4 && Op2 || Op5 && Op2;
-  *Branch = !Op5 && !Op4 && !Op3 && Op2 && !Op1 && !Op0;
-  ALUOp[0] = !Op2 && !Op1;
-  ALUOp[1] = !Op5 && !Op4 && !Op3 && Op2 && !Op1 && !Op0;
+  *RegDst = !Op5 || Op2;
+  *ALUSrc = Op1 || Op3;
+  *MemToReg = Op1;
+  *RegWrite = !Op2 && !Op1 || !Op3 && Op0;
+  *MemRead = Op5 && !Op3;
+  *MemWrite = Op5 && Op3;
+  *Branch = Op2;
+  ALUOp[0] = (!Op3 && !Op2 && !Op1) || (Op5 && Op2);
+  ALUOp[1] = Op2;
+  *Jump = !Op5 && Op1 || Op5 && Op2;
 }
 
 void Read_Register(BIT *ReadRegister1, BIT *ReadRegister2,
@@ -567,10 +569,10 @@ void adder1(BIT A, BIT B, BIT CarryIn, BIT *CarryOut, BIT *Sum)
 
 void ALU1(BIT *ALUControl, BIT *A, BIT *B, BIT *CarryIn, BIT *Less, BIT *Zero, BIT *Result, BIT *CarryOut, BIT *Set)
 {
-  BIT Op3 = ALUControl[0];
-  BIT Op2 = ALUControl[1];
-  BIT Op1 = ALUControl[2];
-  BIT Op0 = ALUControl[3];
+  BIT Op3 = ALUControl[3];
+  BIT Op2 = ALUControl[2];
+  BIT Op1 = ALUControl[1];
+  BIT Op0 = ALUControl[0];
 
   BIT Binvert = Op2; // Set binvert to second bit of opcode
 
@@ -586,6 +588,33 @@ void ALU(BIT *ALUControl, BIT *Input1, BIT *Input2, BIT *Zero, BIT *Result)
   // Input: 4-bit ALUControl, two 32-bit inputs
   // Output: 32-bit result, and zero flag big
   // Note: Can re-use prior implementations (but need new circuitry for zero)
+
+  BIT Op3 = ALUControl[3];
+  BIT Op2 = ALUControl[2];
+  BIT Op1 = ALUControl[1];
+  BIT Op0 = ALUControl[0];
+
+  BIT Binvert = Op2; // Set binvert to second bit of opcode
+  BIT CarryIn = Binvert;
+
+  BIT Set = UNDEF;
+  BIT CarryInFirst = CarryIn; // Save for later use when calculating first ALU1
+
+  BIT mux2 = multiplexor2(Binvert, Input2[0], not_gate(Input2[0]));
+  adder1(Input1[0], mux2, CarryIn, &CarryIn, &Set); // Calculate the carryout from alu 1
+
+  BIT tmpZero1 = TRUE; // Starting zero to see if all 32 bit alu outputs are 0
+  BIT *tmpZero2;
+  for (int i = 1; i < 32; i++)
+  {
+    ALU1(Input1[i], Input2[i], CarryIn, FALSE, tmpZero2, Op0, Op1, &Result[i], &CarryIn, &Set);
+    tmpZero1 = and_gate(tmpZero1, *tmpZero2);
+  }
+  ALU1(Input1[0], Input2[0], CarryInFirst, Set, tmpZero2, Op0, Op1, &Result[0], &CarryIn, &Set);
+  tmpZero1 = and_gate(tmpZero1, *tmpZero2);
+
+  // Calculate Zero
+  *Zero = tmpZero1;
 }
 
 void Data_Memory(BIT MemWrite, BIT MemRead,
