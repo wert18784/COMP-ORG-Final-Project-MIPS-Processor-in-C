@@ -499,23 +499,23 @@ void Control(BIT *OpCode,
   // Input: opcode field from the instruction
   // OUtput: all control lines get set
   // Note: Can use SOP or similar approaches to determine bits
-  BIT Op5 = OpCode[0];
-  BIT Op4 = OpCode[1];
-  BIT Op3 = OpCode[2];
-  BIT Op2 = OpCode[3];
-  BIT Op1 = OpCode[4];
-  BIT Op0 = OpCode[5];
+  BIT Op5 = OpCode[5];
+  BIT Op4 = OpCode[4];
+  BIT Op3 = OpCode[3];
+  BIT Op2 = OpCode[2];
+  BIT Op1 = OpCode[1];
+  BIT Op0 = OpCode[0];
 
-  *RegDst = !Op5 || Op2;
-  *ALUSrc = Op1 || Op3;
+  *RegDst = or_gate(not_gate(Op5), Op2);
+  *ALUSrc = or_gate(Op1, Op3);
   *MemToReg = Op1;
-  *RegWrite = !Op2 && !Op1 || !Op3 && Op0;
-  *MemRead = Op5 && !Op3;
-  *MemWrite = Op5 && Op3;
+  *RegWrite = or_gate(nor_gate(Op1, Op2), and_gate(not_gate(Op3), Op0));
+  *MemRead = and_gate(Op5, not_gate(Op3));
+  *MemWrite = and_gate(Op5, Op3);
   *Branch = Op2;
-  ALUOp[0] = (!Op3 && !Op2 && !Op1) || (Op5 && Op2);
+  ALUOp[0] = or_gate(not_gate(or_gate3(Op3, Op2, Op1)), and_gate(Op5, Op2));
   ALUOp[1] = Op2;
-  *Jump = !Op5 && Op1 || Op5 && Op2;
+  *Jump = or_gate(and_gate(not_gate(Op5), Op1), and_gate(Op5, Op2));
 }
 
 void Read_Register(BIT *ReadRegister1, BIT *ReadRegister2,
