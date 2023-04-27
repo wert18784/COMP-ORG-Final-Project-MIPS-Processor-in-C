@@ -527,10 +527,43 @@ void ALU_Control(BIT *ALUOp, BIT *funct, BIT *ALUControl)
   // Output:4-bit ALUControl for input into the ALU
   // Note: Can use SOP or similar approaches to determine bits
 
+  // 0000 AND
+  // 0001 OR
+  // 0010 add
+  // 0110 subtract
+  // 0111 set-on-less-than
+  // 1100 NOR
+
   ALUControl[0] = 0;
   ALUControl[1] = funct[4];
   ALUControl[2] = not_gate(funct[3]);
   ALUControl[3] = or_gate(funct[5], funct[2]);
+}
+
+void adder1(BIT A, BIT B, BIT CarryIn, BIT *CarryOut, BIT *Sum)
+{
+  // TODO: implement a 1-bit adder
+  BIT x0 = xor_gate(A, B);
+  *Sum = xor_gate(CarryIn, x0);
+
+  BIT y0 = and_gate(x0, CarryIn);
+  BIT y1 = and_gate(A, B);
+  *CarryOut = or_gate(y0, y1);
+}
+
+void ALU1(BIT *ALUControl, BIT *A, BIT *B, BIT *CarryIn, BIT *Less, BIT *Zero, BIT *Result, BIT *CarryOut, BIT *Set)
+{
+  BIT Op3 = ALUControl[0];
+  BIT Op2 = ALUControl[1];
+  BIT Op1 = ALUControl[2];
+  BIT Op0 = ALUControl[3];
+
+  BIT Binvert = Op2; // Set binvert to second bit of opcode
+
+  BIT mux2 = multiplexor2(Binvert, B, not_gate(B));
+  adder1(A, mux2, CarryIn, CarryOut, Set); // Set is the sum
+  *Result = multiplexor4(Op1, Op0, and_gate(A, mux2), or_gate(A, mux2), *Set, Less);
+  *Zero = not_gate(*Result);
 }
 
 void ALU(BIT *ALUControl, BIT *Input1, BIT *Input2, BIT *Zero, BIT *Result)
@@ -539,6 +572,10 @@ void ALU(BIT *ALUControl, BIT *Input1, BIT *Input2, BIT *Zero, BIT *Result)
   // Input: 4-bit ALUControl, two 32-bit inputs
   // Output: 32-bit result, and zero flag big
   // Note: Can re-use prior implementations (but need new circuitry for zero)
+
+  BIT mux2 = multiplexor2(Binvert, B, not_gate(B));
+  adder1(A, mux2, CarryIn, CarryOut, Set); // Set is the sum
+  *Result = multiplexor4(Op0, Op1, and_gate(A, mux2), or_gate(A, mux2), *Set, Less);
 }
 
 void Data_Memory(BIT MemWrite, BIT MemRead,
