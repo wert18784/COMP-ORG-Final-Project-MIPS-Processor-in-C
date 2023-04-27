@@ -211,6 +211,20 @@ void convert_to_binary_char(int a, char *A, int length)
   }
 }
 
+int fivebits_to_integer(BIT *A)
+{
+  unsigned a = 0;
+  unsigned mult = 1;
+
+  for (int i = 0; i < 5; ++i)
+  {
+    a += A[i] * mult;
+    mult *= 2;
+  }
+
+  return (int)a;
+}
+
 int binary_to_integer(BIT *A)
 {
   unsigned a = 0;
@@ -488,6 +502,8 @@ void Read_Register(BIT *ReadRegister1, BIT *ReadRegister2,
   // Input: two 5-bit register addresses
   // Output: the values of the specified registers in ReadData1 and ReadData2
   // Note: Implementation will be very similar to instruction memory circuit
+  copy_bits(MEM_Register[fivebits_to_integer(ReadRegister1)], ReadData1);
+  copy_bits(MEM_Register[fivebits_to_integer(ReadRegister2)], ReadData2);
 }
 
 void Write_Register(BIT RegWrite, BIT *WriteRegister, BIT *WriteData)
@@ -496,6 +512,10 @@ void Write_Register(BIT RegWrite, BIT *WriteRegister, BIT *WriteData)
   // Input: one 5-bit register address, data to write, and control bit
   // Output: None, but will modify register file
   // Note: Implementation will again be similar to those above
+  int index = fivebits_to_integer(WriteRegister);
+  for (int i = 0; i < 32; ++i) {
+    MEM_Register[index][i] = multiplexor2(RegWrite, MEM_Register[index][i], WriteData[i]);
+  }
 }
 
 void ALU_Control(BIT *ALUOp, BIT *funct, BIT *ALUControl)
