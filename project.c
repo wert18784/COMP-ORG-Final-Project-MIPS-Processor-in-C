@@ -211,6 +211,20 @@ void convert_to_binary_char(int a, char *A, int length)
   }
 }
 
+int fivebits_to_integer(BIT *A)
+{
+  unsigned a = 0;
+  unsigned mult = 1;
+
+  for (int i = 0; i < 5; ++i)
+  {
+    a += A[i] * mult;
+    mult *= 2;
+  }
+
+  return (int)a;
+}
+
 int binary_to_integer(BIT *A)
 {
   unsigned a = 0;
@@ -509,6 +523,8 @@ void Read_Register(BIT *ReadRegister1, BIT *ReadRegister2,
   // Input: two 5-bit register addresses
   // Output: the values of the specified registers in ReadData1 and ReadData2
   // Note: Implementation will be very similar to instruction memory circuit
+  copy_bits(MEM_Register[fivebits_to_integer(ReadRegister1)], ReadData1);
+  copy_bits(MEM_Register[fivebits_to_integer(ReadRegister2)], ReadData2);
 }
 
 void Write_Register(BIT RegWrite, BIT *WriteRegister, BIT *WriteData)
@@ -517,6 +533,11 @@ void Write_Register(BIT RegWrite, BIT *WriteRegister, BIT *WriteData)
   // Input: one 5-bit register address, data to write, and control bit
   // Output: None, but will modify register file
   // Note: Implementation will again be similar to those above
+  int index = fivebits_to_integer(WriteRegister);
+  for (int i = 0; i < 32; ++i)
+  {
+    MEM_Register[index][i] = multiplexor2(RegWrite, MEM_Register[index][i], WriteData[i]);
+  }
 }
 
 void ALU_Control(BIT *ALUOp, BIT *funct, BIT *ALUControl)
@@ -527,17 +548,10 @@ void ALU_Control(BIT *ALUOp, BIT *funct, BIT *ALUControl)
   // Output:4-bit ALUControl for input into the ALU
   // Note: Can use SOP or similar approaches to determine bits
 
-  // 0000 AND
-  // 0001 OR
-  // 0010 add
-  // 0110 subtract
-  // 0111 set-on-less-than
-  // 1100 NOR
-
-  ALUControl[0] = 0;
-  ALUControl[1] = funct[4];
-  ALUControl[2] = not_gate(funct[3]);
-  ALUControl[3] = or_gate(funct[5], funct[2]);
+  ALUControl[0] = FALSE;
+  ALUControl[1] = multiplexor2(ALUOp[1], ALUOp[0], funct[1]);
+  ALUControl[2] = multiplexor2(ALUOp[1], TRUE, not_gate(funct[2]));
+  ALUControl[3] = multiplexor2(ALUOp[1], FALSE, and_gate(or_gate(funct[0], funct[1]), or_gate(funct[2], funct[3])));
 }
 
 void adder1(BIT A, BIT B, BIT CarryIn, BIT *CarryOut, BIT *Sum)
@@ -572,10 +586,6 @@ void ALU(BIT *ALUControl, BIT *Input1, BIT *Input2, BIT *Zero, BIT *Result)
   // Input: 4-bit ALUControl, two 32-bit inputs
   // Output: 32-bit result, and zero flag big
   // Note: Can re-use prior implementations (but need new circuitry for zero)
-
-  BIT mux2 = multiplexor2(Binvert, B, not_gate(B));
-  adder1(A, mux2, CarryIn, CarryOut, Set); // Set is the sum
-  *Result = multiplexor4(Op0, Op1, and_gate(A, mux2), or_gate(A, mux2), *Set, Less);
 }
 
 void Data_Memory(BIT MemWrite, BIT MemRead,
