@@ -547,10 +547,10 @@ void ALU_Control(BIT *ALUOp, BIT *funct, BIT *ALUControl)
   // Output:4-bit ALUControl for input into the ALU
   // Note: Can use SOP or similar approaches to determine bits
 
-  ALUControl[0] = 0;
-  ALUControl[1] = funct[4];
-  ALUControl[2] = not_gate(funct[3]);
-  ALUControl[3] = or_gate(funct[5], funct[2]);
+  ALUControl[0] = FALSE;
+  ALUControl[1] = multiplexor2(ALUOp[1], ALUOp[0], funct[1]);
+  ALUControl[2] = multiplexor2(ALUOp[1], TRUE, not_gate(funct[2]));
+  ALUControl[3] = multiplexor2(ALUOp[1], FALSE, and_gate(or_gate(funct[0], funct[1]), or_gate(funct[2], funct[3])));
 }
 
 void ALU(BIT *ALUControl, BIT *Input1, BIT *Input2, BIT *Zero, BIT *Result)
@@ -559,6 +559,7 @@ void ALU(BIT *ALUControl, BIT *Input1, BIT *Input2, BIT *Zero, BIT *Result)
   // Input: 4-bit ALUControl, two 32-bit inputs
   // Output: 32-bit result, and zero flag big
   // Note: Can re-use prior implementations (but need new circuitry for zero)
+
 }
 
 void Data_Memory(BIT MemWrite, BIT MemRead,
