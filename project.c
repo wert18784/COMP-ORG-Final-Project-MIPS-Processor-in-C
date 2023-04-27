@@ -273,7 +273,7 @@ void convert_register_name(char *regname, char *regbin)
 void convert_instruction_opcode(char *instruction, char *op)
 {
   // Not needed for R-type
-  if (instruction == "lw")
+  if (!strcmp(instruction, "lw"))
     strcpy(op, "100011");
   else if (!strcmp(instruction, "sw"))
     strcpy(op, "101011");
@@ -296,7 +296,7 @@ void convert_instruction_opcode(char *instruction, char *op)
 void convert_instruction_funct(char *instruction, char *funct)
 {
   // Only for R-type Instructions
-  if (instruction == "and")
+  if (!strcmp(instruction, "and"))
     strcpy(funct, "100100");
   else if (!strcmp(instruction, "or"))
     strcpy(funct, "100101");
@@ -345,6 +345,7 @@ int get_instructions(BIT Instructions[][32])
     // Get Instruction
     char instruction[16];
     sscanf(line, "%s", instruction);
+
     // IF Instruction is I-type:
     if (!strcmp(instruction, "lw") || !strcmp(instruction, "sw") || !strcmp(instruction, "beq") || !strcmp(instruction, "addi"))
     {
@@ -370,6 +371,7 @@ int get_instructions(BIT Instructions[][32])
       for (int i = 16; i < 32; i++)
         Instructions[instruction_count][i] = immediate[i - 16];
     }
+
     // Special case for jr ra (can be hardcoded)
     else if (!strcmp(instruction, "jr"))
     {
@@ -378,19 +380,23 @@ int get_instructions(BIT Instructions[][32])
       for (int i = 27; i < 32; i++)
         Instructions[instruction_count][i] = TRUE;
     }
+
     // IF Instruction is J-type (other than jr):
     else if (!strcmp(instruction, "j") || !strcmp(instruction, "jal"))
     {
       int address_int;
+
       sscanf(line, "%s %d", instruction, &address_int);
       convert_instruction_opcode(instruction, op);
       convert_to_binary_char(address_int, address, 26);
+
       // Combine all fields and append to instructions
       for (int i = 0; i < 6; i++)
         Instructions[instruction_count][i] = op[i];
       for (int i = 6; i < 32; i++)
         Instructions[instruction_count][i] = address[i - 6];
     }
+
     // IF Instruction is R-type:
     else
     {
@@ -493,6 +499,21 @@ void Control(BIT *OpCode,
   // Input: opcode field from the instruction
   // OUtput: all control lines get set
   // Note: Can use SOP or similar approaches to determine bits
+  BIT Op5 = OpCode[0];
+  BIT Op4 = OpCode[1];
+  BIT Op3 = OpCode[2];
+  BIT Op2 = OpCode[3];
+  BIT Op1 = OpCode[4];
+  BIT Op0 = OpCode[5];
+
+  *RegDst = !Op1;
+  *ALUSrc = Op1;
+  *MemToReg = (!Op3) && (!Op2);
+  *MemRead = (!Op3) && Op1;
+  *MemWrite = Op2 && Op0 || Op2 && Op1 || Op3 || Op4 && Op2 || Op5 && Op2;
+  *Branch = !Op5 && !Op4 && !Op3 && Op2 && !Op1 && !Op0;
+  ALUOp[0] = !Op2 && !Op1;
+  ALUOp[1] = !Op5 && !Op4 && !Op3 && Op2 && !Op1 && !Op0;
 }
 
 void Read_Register(BIT *ReadRegister1, BIT *ReadRegister2,
@@ -525,6 +546,11 @@ void ALU_Control(BIT *ALUOp, BIT *funct, BIT *ALUControl)
   //        binary instruction
   // Output:4-bit ALUControl for input into the ALU
   // Note: Can use SOP or similar approaches to determine bits
+
+  ALUControl[0] = 0;
+  ALUControl[1] = funct[4];
+  ALUControl[2] = not_gate(funct[3]);
+  ALUControl[3] = or_gate(funct[5], funct[2]);
 }
 
 void ALU(BIT *ALUControl, BIT *Input1, BIT *Input2, BIT *Zero, BIT *Result)
@@ -558,7 +584,7 @@ void Extend_Sign16(BIT *Input, BIT *Output)
 void updateState()
 {
   // TODO: Implement the full datapath here
-  // Essentially, you'll be figuring out the order in which to process each of
+  // Essentb    ially, you'll be figuring out the order in which to process each of
   // the sub-circuits comprising the entire processor circuit. It makes it
   // easier to consider the pipelined version of the process, and handle things
   // in order of the pipeline. The stages and operations are:
