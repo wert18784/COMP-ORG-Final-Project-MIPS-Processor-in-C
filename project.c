@@ -488,6 +488,7 @@ void Instruction_Memory(BIT *ReadAddress, BIT *Instruction)
   // Input: 32-bit instruction address
   // Output: 32-bit binary instruction
   // Note: Useful to use a 5-to-32 decoder here
+  copy_bits(MEM_Instruction[binary_to_integer(ReadAddress)], Instruction);
 }
 
 void Control(BIT *OpCode,
@@ -623,6 +624,13 @@ void Data_Memory(BIT MemWrite, BIT MemRead,
   // Input: 32-bit address, control flags for read/write, and data to write
   // Output: data read if processing a lw instruction
   // Note: Implementation similar as above
+  int index = binary_to_integer(Address);
+
+  // IF READ: read 32-bit word from Address, and output to ReadData
+  multiplexor2_32(MemRead, ReadData, MEM_Data[index], ReadData);
+
+  // IF WRITE: write data in WriteData to memory location at address
+  multiplexor2_32(MemWrite, MEM_Data[index], WriteData, MEM_Data[index]);
 }
 
 void Extend_Sign16(BIT *Input, BIT *Output)
