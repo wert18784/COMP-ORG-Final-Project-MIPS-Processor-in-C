@@ -18,19 +18,17 @@ typedef char BIT;
 #define UNDEF -1
 
 // useful constants
-BIT ONE[32] = {TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE,
-               FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE,
-               FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE,
-               FALSE};
+BIT ONE[32] = {TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE,
+               FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE};
 BIT ZERO[32] = {FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE,
-                FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE,
-                FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE,
-                FALSE};
+                FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE};
 BIT REG_THIRTY_ONE[5] = {TRUE, TRUE, TRUE, TRUE, TRUE};
 BIT THIRTY_TWO[32] = {FALSE, FALSE, FALSE, FALSE, FALSE, TRUE, FALSE, FALSE, FALSE,
-                      FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE,
-                      FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE,
-                      FALSE};
+                      FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE};
+BIT TWO[32] = {FALSE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE,
+               FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE};
+BIT FOUR[32] = {FALSE, FALSE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE,
+                FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE};
 
 /******************************************************************************/
 /* Function prototypes */
@@ -644,6 +642,65 @@ void Extend_Sign16(BIT *Input, BIT *Output)
   }
 }
 
+void shifter(BIT *A, BIT *R, BIT Control)
+{
+  // TODO: implement 1-bit shifter
+  // One call to this circuit will shift A one bit to the left or right
+  // The result will be stored in R
+  // Control = 0 -> shift left
+  // Control = 1 -> shift right
+  // See: https://www.101computing.net/binary-shifters-using-logic-gates/
+
+  R[0] = and_gate(not_gate(Control), A[1]);
+  for (int i = 1; i < 31; i++)
+  {
+    R[i] = or_gate(and_gate(Control, A[i - 1]), and_gate(not_gate(Control), A[i + 1]));
+  }
+  R[31] = and_gate(Control, A[30]);
+}
+
+void left_shifter32(BIT *A, BIT *B, BIT *R)
+{
+  // TODO: Implement 32-bit left shifter
+  // You'll shift input A to the left by the number specific in B
+  // The result will be stored in R
+  // You can assume that B >= 0
+  // There's no specified circuit that you need to implement here. The logic
+  // that I used for my implementation was basically:
+  // B_temp = B, A_temp = A
+  // for i = 0..31
+  //   use ALU to check if B_temp < 1
+  //   do left shift
+  //   use mux to store AB_temp in R if the result from above was false
+  //   subtract 1 from B_temp using ALU
+  // Note that this for loop is static, so allowed per our rules.
+  BIT B_temp[32];
+  BIT A_temp[32];
+  copy_bits(B, B_temp);
+  copy_bits(A, A_temp);
+
+  BIT A_temp2[32];
+  BIT CarryOut[32];
+  BIT Result[32];
+
+  for (int i = 0; i < 32; i++)
+  {
+    BIT ALUCtrlSlt[4] = {0, 1, 1, 1};
+    BIT *Zero;
+
+    ALU(ALUCtrlSlt, B_temp, ONE, Zero, Result);
+    shifter(A_temp, A_temp2, 1);
+    copy_bits(A_temp2, A_temp);
+    for (int j = 0; j < 32; j++)
+    {
+      R[j] = multiplexor2(Result[0], A_temp[j], R[j]);
+    }
+    ALU32(ALUCtrlSlt, B_temp, ONE, Zero, Result);
+    copy_bits(Result, B_temp);
+  }
+  return;
+}
+
 void updateState()
 {
   // TODO: Implement the full datapath here
@@ -657,6 +714,95 @@ void updateState()
   // Memory - read/write data memory
   // Write Back - write to the register file
   // Update PC - determine the final PC value for the next instruction
+
+  // BIT PC[32] = {FALSE};
+  // BIT MEM_Instruction[32][32] = {FALSE};
+  // BIT MEM_Data[32][32] = {FALSE};
+  // BIT MEM_Register[32][32] = {FALSE};
+
+  BIT Instruction[32] = {FALSE};
+  BIT ReadData1[32] = {FALSE};
+  BIT ReadData2[32] = {FALSE};
+  BIT WriteData[32] = {FALSE};
+
+  Instruction_Memory(PC, Instruction);
+
+  BIT Opcode[6]; // 31 - 26
+  BIT Instruction25_21[5];
+  BIT Instruction20_16[5];
+  BIT Instruction15_11[5];
+  BIT Instruction15_0[16];
+  BIT Instruction25_0[26];
+  BIT Instruction5_0[6]; // Funct
+  BIT Instruction15_0_SignExtended[32];
+
+  for (int i = 0; i < 6; i++)
+    Opcode[i] = Instruction[i];
+
+  for (int i = 6; i < 11; i++)
+    Instruction25_21[i] = Instruction[i];
+  for (int i = 11; i < 16; i++)
+    Instruction20_16[i] = Instruction[i];
+  for (int i = 16; i < 21; i++)
+    Instruction15_11[i] = Instruction[i];
+  for (int i = 16; i < 32; i++)
+    Instruction15_0[i] = Instruction[i];
+  for (int i = 6; i < 32; i++)
+    Instruction25_0[i] = Instruction[i];
+  for (int i = 28; i < 32; i++)
+    Instruction5_0[i] = Instruction[i];
+
+  Control(Opcode,
+          &RegDst, &Jump, &Branch, &MemRead, &MemToReg,
+          &ALUOp, &MemWrite, &ALUSrc, &RegWrite);
+
+  Read_Register(Instruction25_21, Instruction20_16,
+                ReadData1, ReadData2);
+
+  ALU_Control(ALUOp, Instruction5_0, ALUControl);
+
+  Extend_Sign16(Instruction15_0, Instruction15_0_SignExtended);
+  BIT ALUInput1[32] = ReadData1;
+  BIT ALUInput2[32] = {FALSE};
+  BIT ALUResult[32] = {FALSE};
+  BIT *ALUZero = {FALSE};
+  multiplexor2_32(ALUSrc, ReadData2, Instruction15_0_SignExtended, ALUInput2);
+  ALU(ALUControl, ALUInput1, ALUInput2, ALUZero, ALUResult);
+
+  multiplexor2_32(MemToReg, ReadData1, ALUResult, WriteData);
+  Data_Memory(MemWrite, MemRead, ALUResult, ReadData2, WriteData);
+
+  // // Write_Register(RegWrite, WriteData, )
+  // BIT WriteRegister[32] = {FALSE}
+  // multiplexor2_32(RegDst, Instruction15_11, Instruction20_16)
+  // Write_Register(RegWrite, WriteData, )
+
+  // ADD 4 to PC with ALU
+  BIT ALUCtrlAdd[4] = {0, 0, 1, 0};
+  BIT AddFourResult[32] = {FALSE};
+  BIT *_; // Dont care about Zero
+  ALU(ALUCtrlAdd, PC, FOUR, _, AddFourResult);
+
+  // Shift Left 2
+  BIT ShiftLeft2Result[32];
+  BIT ShiftLeft2Result2[32];
+  void left_shifter32(Instruction25_0, TWO, ShiftLeft2Result);
+
+  BIT JumpAddress[32] = {FALSE};
+  for (int i = 0; i < 4; i++)
+    JumpAddress[i] = AddFourResult[i];
+  for (int i = 0; i < 32; i++)
+    JumpAddress[i + 4] = ShiftLeft2Result[i];
+
+  // Other Alu left shift thing
+  left_shifter32(Instruction15_0_SignExtended, TWO, ShiftLeft2Result2);
+  BIT ALUCtrlAdd[4] = {0, 0, 1, 0};
+  BIT AddShiftLeft2Result[32] = {FALSE};
+  ALU(ALUCtrlAdd, AddFourResult, ShiftLeft2Result2, _, AddShiftLeft2Result);
+
+  BIT temp[32] = {FALSE};
+  multiplexor2_32(and_gate(Branch, ALUZero), AddShiftLeft2Result, AddFourResult, temp);
+  multiplexor2_32(Jump, JumpAddress, temp, PC);
 }
 
 /******************************************************************************/
