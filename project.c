@@ -506,7 +506,7 @@ void Control(BIT *OpCode,
   BIT Op1 = OpCode[1];
   BIT Op0 = OpCode[0];
 
-  *RegDst = or_gate(not_gate(Op5), Op2);
+  *RegDst = or_gate(not_gate(Op1), and_gate(not_gate(Op5), Op0));
   *ALUSrc = or_gate(Op1, Op3);
   *MemToReg = Op1;
   *RegWrite = or_gate(nor_gate(Op1, Op2), and_gate(not_gate(Op3), Op0));
@@ -657,6 +657,67 @@ void updateState()
   // Memory - read/write data memory
   // Write Back - write to the register file
   // Update PC - determine the final PC value for the next instruction
+  BIT instruction[32] = {FALSE};
+  Instruction_Memory(PC, instruction);
+  BIT opcode[6] = {FALSE};
+  BIT inst25_21[5] = {FALSE};
+  BIT inst20_16[5] = {FALSE};
+  BIT inst15_11[5] = {FALSE};
+  BIT inst25_0[26] = {FALSE};
+  BIT inst15_0[16] = {FALSE};
+  BIT inst5_0[6] = {FALSE};
+  for (int i = 0; i < 6; ++i) {
+    opcode[i] = instruction[i + 26];
+    inst5_0[i] = instruction[i];
+  }
+  for (int i = 0; i < 5; ++i) {
+    inst25_21[i] = instruction[i + 21];
+    inst20_16[i] = instruction[i + 16];
+    inst15_11[i] = instruction[i + 11];
+  }
+  for (int i = 0; i < 16; ++i) {
+    inst15_0[i] = instruction[i];
+  }
+  for (int i = 0; i < 25; ++i) {
+    inst25_0[i] = instruction[i];
+  }
+  Control(opcode, &RegDst, &Jump, &Branch, &MemRead, &MemToReg, ALUOp, &MemWrite, &ALUSrc, &RegWrite);
+
+  BIT readdata1[32] = {FALSE};
+  BIT readdata2[32] = {FALSE};
+  Read_Register(inst25_21, inst20_16, readdata1, readdata2);
+
+  BIT inst16[32] = {FALSE};
+  Extend_Sign16(inst15_0, inst16);
+
+  ALU_Control(ALUOp, inst5_0, ALUControl);
+
+  // Add 1 to PC
+  BIT ALUCtrlAdd[4] = {FALSE, FALSE, TRUE, FALSE};
+  BIT pcadd[32] = {FALSE};
+  BIT z = FALSE;
+  ALU(ALUCtrlAdd, PC, ONE, z, pcadd);
+  copybits(pcadd, PC);
+
+  BIT input2[32] = {FALSE};
+  BIT aluoutput[32] = {FALSE};
+  BIT zero = FALSE;
+  multiplexor2_32(ALUSrc, readdata2, inst16, input2);
+  ALU(ALUControl, readdata1, input2, &zero, aluoutput);
+
+  BIT datamemread[32] = {FALSE};
+  Data_Memory(MemWrite, MemRead, aluoutput, readdata2, datamemread);
+
+  BIT writedata[32] = {FALSE};
+  multiplexor2_32(MemToReg, aluoutput, datamemread, writedata);
+  multiplexor2_32(and_gate(RegWrite, Jump), writedata, PC, writedata);
+
+  BIT writeregister[5] = {FALSE};
+  multiplexor2_32(RegDst, inst20_16, inst15_11, writeregister);
+  multiplexor2_32(and_gate(RegWrite, Jump), writeregister, REG_THIRTY_ONE, writeregister);
+  Write_Register(RegWrite, writeregister, writedata);
+
+  
 }
 
 /******************************************************************************/
