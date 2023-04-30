@@ -306,6 +306,8 @@ void convert_instruction_funct(char *instruction, char *funct)
     strcpy(funct, "100010");
   else if (!strcmp(instruction, "slt"))
     strcpy(funct, "101010");
+  else if (!strcmp(instruction, "jr"))
+    strcpy(funct, "001000");
 
   for (int i = 0; i < 6; i++)
   {
@@ -363,22 +365,35 @@ int get_instructions(BIT Instructions[][32])
 
       // Combine all fields and append to instructions
       for (int i = 0; i < 6; i++)
-        Instructions[instruction_count][i] = op[i];
-      for (int i = 6; i < 10; i++)
-        Instructions[instruction_count][i] = rt[i - 6];
-      for (int i = 11; i < 16; i++)
-        Instructions[instruction_count][i] = rs[i - 11];
-      for (int i = 16; i < 32; i++)
-        Instructions[instruction_count][i] = immediate[i - 16];
+        Instructions[instruction_count][i + 26] = op[i];
+      for (int i = 0; i < 5; i++) {
+        Instructions[instruction_count][i + 16] = rt[i];
+        Instructions[instruction_count][i + 21] = rs[i];
+      }
+      for (int i = 0; i < 16; i++)
+        Instructions[instruction_count][i] = immediate[i];
     }
 
     // Special case for jr ra (can be hardcoded)
     else if (!strcmp(instruction, "jr"))
     {
-      for (int i = 0; i < 27; i++)
-        Instructions[instruction_count][i] = FALSE;
-      for (int i = 27; i < 32; i++)
-        Instructions[instruction_count][i] = TRUE;
+      char reg1[64];
+
+      sscanf(line, "%s %s", instruction, reg1);
+      convert_register_name(reg1, rs);
+      // Op-code is 000000 for all r-type
+      convert_instruction_funct(instruction, funct);
+
+      for (int i = 0; i < 6; ++i) {
+        Instructions[instruction_count][i + 26] = op[i];
+        Instructions[instruction_count][i] = funct[i];
+      }
+      for (int i = 0; i < 5; ++i) {
+        Instructions[instruction_count][i + 21] = rs[i];
+      }
+      for (int i = 0; i < 15; ++i) {
+        Instructions[instruction_count][i + 6] = FALSE;
+      }
     }
 
     // IF Instruction is J-type (other than jr):
@@ -392,9 +407,9 @@ int get_instructions(BIT Instructions[][32])
 
       // Combine all fields and append to instructions
       for (int i = 0; i < 6; i++)
-        Instructions[instruction_count][i] = op[i];
-      for (int i = 6; i < 32; i++)
-        Instructions[instruction_count][i] = address[i - 6];
+        Instructions[instruction_count][i + 26] = op[i];
+      for (int i = 0; i < 26; i++)
+        Instructions[instruction_count][i] = address[i];
     }
 
     // IF Instruction is R-type:
@@ -414,18 +429,16 @@ int get_instructions(BIT Instructions[][32])
       convert_instruction_funct(instruction, funct);
 
       // Combine all fields and append to instructions
-      for (int i = 0; i < 6; i++)
-        Instructions[instruction_count][i] = op[i];
-      for (int i = 6; i < 11; i++)
-        Instructions[instruction_count][i] = rt[i - 6];
-      for (int i = 11; i < 16; i++)
-        Instructions[instruction_count][i] = rd[i - 11];
-      for (int i = 16; i < 21; i++)
-        Instructions[instruction_count][i] = rs[i - 16];
-      for (int i = 21; i < 26; i++)
-        Instructions[instruction_count][i] = shamt[i - 21];
-      for (int i = 26; i < 32; i++)
-        Instructions[instruction_count][i] = funct[i - 26];
+      for (int i = 0; i < 6; i++) {
+        Instructions[instruction_count][i + 26] = op[i];
+        Instructions[instruction_count][i] = funct[i];
+      }
+      for (int i = 0; i < 5; i++) {
+        Instructions[instruction_count][i + 16] = rt[i];
+        Instructions[instruction_count][i + 11] = rd[i];
+        Instructions[instruction_count][i + 21] = rs[i];
+        Instructions[instruction_count][i + 6] = shamt[i];
+      } 
     }
     instruction_count++;
   }
@@ -607,10 +620,10 @@ void ALU(BIT *ALUControl, BIT *Input1, BIT *Input2, BIT *Zero, BIT *Result)
   BIT *tmpZero2;
   for (int i = 1; i < 32; i++)
   {
-    ALU1(Input1[i], Input2[i], CarryIn, FALSE, tmpZero2, ALUControl, &Result[i], &CarryIn, &Set);
+    ALU1(ALUControl, Input1[i], Input2[i], CarryIn, FALSE, tmpZero2, &Result[i], &CarryIn, &Set);
     tmpZero1 = and_gate(tmpZero1, *tmpZero2);
   }
-  ALU1(Input1[0], Input2[0], CarryInFirst, Set, tmpZero2, ALUControl, &Result[0], &CarryIn, &Set);
+  ALU1(ALUControl, Input1[0], Input2[0], CarryInFirst, Set, tmpZero2, &Result[0], &CarryIn, &Set);
   tmpZero1 = and_gate(tmpZero1, *tmpZero2);
 
   // Calculate Zero
@@ -717,7 +730,7 @@ void updateState()
   multiplexor2_32(and_gate(RegWrite, Jump), writeregister, REG_THIRTY_ONE, writeregister);
   Write_Register(RegWrite, writeregister, writedata);
 
-  
+
 }
 
 /******************************************************************************/
