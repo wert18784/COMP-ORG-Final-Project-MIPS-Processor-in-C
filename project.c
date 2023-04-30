@@ -709,8 +709,8 @@ void updateState()
   BIT ALUCtrlAdd[4] = {FALSE, FALSE, TRUE, FALSE};
   BIT pcadd[32] = {FALSE};
   BIT z = FALSE;
-  ALU(ALUCtrlAdd, PC, ONE, z, pcadd);
-  copybits(pcadd, PC);
+  ALU(ALUCtrlAdd, PC, ONE, &z, pcadd);
+  copy_bits(pcadd, PC);
 
   BIT input2[32] = {FALSE};
   BIT aluoutput[32] = {FALSE};
