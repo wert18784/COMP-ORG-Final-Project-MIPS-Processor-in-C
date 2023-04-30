@@ -513,7 +513,7 @@ void Control(BIT *OpCode,
   // OUtput: all control lines get set
   // Note: Can use SOP or similar approaches to determine bits
   BIT Op5 = OpCode[5];
-  BIT Op4 = OpCode[4];
+  //BIT Op4 = OpCode[4];
   BIT Op3 = OpCode[3];
   BIT Op2 = OpCode[2];
   BIT Op1 = OpCode[1];
@@ -582,7 +582,7 @@ void adder1(BIT A, BIT B, BIT CarryIn, BIT *CarryOut, BIT *Sum)
 
 void ALU1(BIT *ALUControl, BIT A, BIT B, BIT CarryIn, BIT Less, BIT *Zero, BIT *Result, BIT *CarryOut, BIT *Set)
 {
-  BIT Op3 = ALUControl[3];
+  //BIT Op3 = ALUControl[3];
   BIT Op2 = ALUControl[2];
   BIT Op1 = ALUControl[1];
   BIT Op0 = ALUControl[0];
@@ -602,12 +602,7 @@ void ALU(BIT *ALUControl, BIT *Input1, BIT *Input2, BIT *Zero, BIT *Result)
   // Output: 32-bit result, and zero flag big
   // Note: Can re-use prior implementations (but need new circuitry for zero)
 
-  BIT Op3 = ALUControl[3];
-  BIT Op2 = ALUControl[2];
-  BIT Op1 = ALUControl[1];
-  BIT Op0 = ALUControl[0];
-
-  BIT Binvert = Op2; // Set binvert to second bit of opcode
+  BIT Binvert = ALUControl[2]; // Set binvert to second bit of opcode
   BIT CarryIn = Binvert;
 
   BIT Set = UNDEF;
@@ -617,14 +612,14 @@ void ALU(BIT *ALUControl, BIT *Input1, BIT *Input2, BIT *Zero, BIT *Result)
   adder1(Input1[0], mux2, CarryIn, &CarryIn, &Set); // Calculate the carryout from alu 1
 
   BIT tmpZero1 = TRUE; // Starting zero to see if all 32 bit alu outputs are 0
-  BIT *tmpZero2;
+  BIT tmpZero2 = FALSE;
   for (int i = 1; i < 32; i++)
   {
-    ALU1(ALUControl, Input1[i], Input2[i], CarryIn, FALSE, tmpZero2, &Result[i], &CarryIn, &Set);
-    tmpZero1 = and_gate(tmpZero1, *tmpZero2);
+    ALU1(ALUControl, Input1[i], Input2[i], CarryIn, FALSE, &tmpZero2, &Result[i], &CarryIn, &Set);
+    tmpZero1 = and_gate(tmpZero1, tmpZero2);
   }
-  ALU1(ALUControl, Input1[0], Input2[0], CarryInFirst, Set, tmpZero2, &Result[0], &CarryIn, &Set);
-  tmpZero1 = and_gate(tmpZero1, *tmpZero2);
+  ALU1(ALUControl, Input1[0], Input2[0], CarryInFirst, Set, &tmpZero2, &Result[0], &CarryIn, &Set);
+  tmpZero1 = and_gate(tmpZero1, tmpZero2);
 
   // Calculate Zero
   *Zero = tmpZero1;
@@ -676,7 +671,6 @@ void updateState()
   BIT inst25_21[5] = {FALSE};
   BIT inst20_16[5] = {FALSE};
   BIT inst15_11[5] = {FALSE};
-  BIT inst25_0[26] = {FALSE};
   BIT inst15_0[16] = {FALSE};
   BIT inst5_0[6] = {FALSE};
   for (int i = 0; i < 6; ++i) {
@@ -690,9 +684,6 @@ void updateState()
   }
   for (int i = 0; i < 16; ++i) {
     inst15_0[i] = instruction[i];
-  }
-  for (int i = 0; i < 25; ++i) {
-    inst25_0[i] = instruction[i];
   }
   Control(opcode, &RegDst, &Jump, &Branch, &MemRead, &MemToReg, ALUOp, &MemWrite, &ALUSrc, &RegWrite);
 
