@@ -513,15 +513,15 @@ void Control(BIT *OpCode,
   // OUtput: all control lines get set
   // Note: Can use SOP or similar approaches to determine bits
   BIT Op5 = OpCode[5];
-  //BIT Op4 = OpCode[4];
+  BIT Op4 = OpCode[4];
   BIT Op3 = OpCode[3];
   BIT Op2 = OpCode[2];
   BIT Op1 = OpCode[1];
   BIT Op0 = OpCode[0];
 
-  *RegDst = or_gate(not_gate(Op1), and_gate(not_gate(Op5), Op0));
+  *RegDst = or_gate(and_gate(not_gate(Op5), Op0), and_gate(not_gate(Op1), or_gate3(not_gate(Op3), Op2, or_gate(Op4, Op5))));
   *ALUSrc = or_gate(Op1, Op3);
-  *MemToReg = Op1;
+  *MemToReg = or_gate(Op1, and_gate3(not_gate(Op5), not_gate(Op4), and_gate3(not_gate(Op3), Op2, not_gate(Op0))));
   *RegWrite = or_gate(nor_gate(Op1, Op2), and_gate(not_gate(Op3), Op0));
   *MemRead = and_gate(Op5, not_gate(Op3));
   *MemWrite = and_gate(Op5, Op3);
