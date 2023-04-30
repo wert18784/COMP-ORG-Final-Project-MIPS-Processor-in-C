@@ -250,9 +250,9 @@ void convert_register_name(char *regname, char *regbin)
   if (!strcmp(regname, "zero"))
     strcpy(regbin, "00000");
   else if (!strcmp(regname, "ra"))
-    strcpy(regbin, "11101");
-  else if (!strcmp(regname, "sp"))
     strcpy(regbin, "11111");
+  else if (!strcmp(regname, "sp"))
+    strcpy(regbin, "11101");
   else if (regname[0] == 'v')
     convert_to_binary_char((int)(regname[1] - '0') + 2, regbin, 5);
   else if (regname[0] == 'a')
@@ -359,8 +359,13 @@ int get_instructions(BIT Instructions[][32])
       sscanf(line, "%s %s %s %d", instruction, reg1, reg2, &immediate_int); // Read in string
       convert_instruction_opcode(instruction, op);                          // Set Opcode
       // Set source and dest regs
-      convert_register_name(reg1, rt);
-      convert_register_name(reg2, rs);
+      if (!strcmp(instruction, "beq")) {
+        convert_register_name(reg1, rs);
+        convert_register_name(reg2, rt);
+      } else {
+        convert_register_name(reg1, rt);
+        convert_register_name(reg2, rs);
+      }
       convert_to_binary_char(immediate_int, immediate, 16); // Set Address
 
       // Combine all fields and append to instructions
@@ -562,7 +567,7 @@ void ALU_Control(BIT *ALUOp, BIT *funct, BIT *ALUControl)
   // Output:4-bit ALUControl for input into the ALU
   // Note: Can use SOP or similar approaches to determine bits
 
-  ALUControl[3] = FALSE;
+  ALUControl[3] = multiplexor2(ALUOp[1], FALSE, and_gate(funct[3], not_gate(funct[5]))); // only 1 for jr
   ALUControl[2] = multiplexor2(ALUOp[1], ALUOp[0], funct[1]);
   ALUControl[1] = multiplexor2(ALUOp[1], TRUE, not_gate(funct[2]));
   ALUControl[0] = multiplexor2(ALUOp[1], FALSE, and_gate(or_gate(funct[0], funct[1]), or_gate(funct[2], funct[3])));
@@ -666,6 +671,8 @@ void updateState()
   // Memory - read/write data memory
   // Write Back - write to the register file
   // Update PC - determine the final PC value for the next instruction
+
+  // FETCH
   BIT instruction[32] = {FALSE};
   Instruction_Memory(PC, instruction);
   BIT opcode[6] = {FALSE};
@@ -686,32 +693,38 @@ void updateState()
   for (int i = 0; i < 16; ++i) {
     inst15_0[i] = instruction[i];
   }
-  Control(opcode, &RegDst, &Jump, &Branch, &MemRead, &MemToReg, ALUOp, &MemWrite, &ALUSrc, &RegWrite);
 
+  // DECODE
+  Control(opcode, &RegDst, &Jump, &Branch, &MemRead, &MemToReg, ALUOp, &MemWrite, &ALUSrc, &RegWrite);
+  
   BIT readdata1[32] = {FALSE};
   BIT readdata2[32] = {FALSE};
   Read_Register(inst25_21, inst20_16, readdata1, readdata2);
 
+  ALU_Control(ALUOp, inst5_0, ALUControl);
+  RegWrite = and_gate(RegWrite, not_gate(ALUControl[3]));
+  Jump = or_gate(Jump, ALUControl[3]);
+
+  // EXECUTE
   BIT inst16[32] = {FALSE};
   Extend_Sign16(inst15_0, inst16);
-
-  ALU_Control(ALUOp, inst5_0, ALUControl);
-
-  // Add 1 to PC
-  BIT ALUCtrlAdd[4] = {FALSE, TRUE, FALSE, FALSE};
-  BIT pcadd[32] = {FALSE};
-  BIT z = FALSE;
-  ALU(ALUCtrlAdd, PC, ONE, &z, pcadd);
-  copy_bits(pcadd, PC);
-
   BIT input2[32] = {FALSE};
   BIT aluoutput[32] = {FALSE};
   BIT zero = FALSE;
   multiplexor2_32(ALUSrc, readdata2, inst16, input2);
   ALU(ALUControl, readdata1, input2, &zero, aluoutput);
 
+  // MEMORY
   BIT datamemread[32] = {FALSE};
   Data_Memory(MemWrite, MemRead, aluoutput, readdata2, datamemread);
+
+  // WRITE
+  // Add 1 to PC temp
+  BIT ALUCtrlAdd[4] = {FALSE, TRUE, FALSE, FALSE};
+  BIT pcadd[32] = {FALSE};
+  BIT z = FALSE;
+  ALU(ALUCtrlAdd, PC, ONE, &z, pcadd);
+  copy_bits(pcadd, PC);
 
   BIT writedata[32] = {FALSE};
   multiplexor2_32(MemToReg, aluoutput, datamemread, writedata);
@@ -722,6 +735,7 @@ void updateState()
   multiplexor2_32(and_gate(RegWrite, Jump), writeregister, REG_THIRTY_ONE, writeregister);
   Write_Register(RegWrite, writeregister, writedata);
 
+  // UPDATE PC
   BIT branchalu[32] = {FALSE};
   ALU(ALUCtrlAdd, PC, inst16, &z, branchalu);
 
@@ -732,6 +746,7 @@ void updateState()
   for (int i = 26; i < 32; ++i) {
     jumpaddress[i] = PC[i];
   }
+  multiplexor2_32(ALUControl[3], jumpaddress, readdata1, jumpaddress);
 
   BIT nextpc[32] = {FALSE};
   multiplexor2_32(and_gate(Branch, zero), PC, branchalu, nextpc);
