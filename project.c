@@ -335,14 +335,14 @@ int get_instructions(BIT Instructions[][32])
     // Note: I parse everything as strings, then convert to BIT array at end
 
     // Possible instruction fields
-    char op[6] = {0}; // Default to 0
-    char rs[5] = {0};
-    char rt[5] = {0};
-    char rd[5] = {0};
-    char immediate[16] = {0};
-    char address[26] = {0};
-    char shamt[5] = {0};
-    char funct[6] = {0};
+    char op[7] = {0}; // Default to 0
+    char rs[6] = {0};
+    char rt[6] = {0};
+    char rd[6] = {0};
+    char immediate[17] = {0};
+    char address[27] = {0};
+    char shamt[6] = {0};
+    char funct[7] = {0};
 
     // Get Instruction
     char instruction[16];
@@ -526,8 +526,8 @@ void Control(BIT *OpCode,
   *MemRead = and_gate(Op5, not_gate(Op3));
   *MemWrite = and_gate(Op5, Op3);
   *Branch = Op2;
-  ALUOp[0] = or_gate(not_gate(or_gate3(Op3, Op2, Op1)), and_gate(Op5, Op2));
-  ALUOp[1] = Op2;
+  ALUOp[1] = or_gate(not_gate(or_gate3(Op3, Op2, Op1)), and_gate(Op5, Op2));
+  ALUOp[0] = Op2;
   *Jump = or_gate(and_gate(not_gate(Op5), Op1), and_gate(Op5, Op2));
 }
 
@@ -562,10 +562,10 @@ void ALU_Control(BIT *ALUOp, BIT *funct, BIT *ALUControl)
   // Output:4-bit ALUControl for input into the ALU
   // Note: Can use SOP or similar approaches to determine bits
 
-  ALUControl[0] = FALSE;
-  ALUControl[1] = multiplexor2(ALUOp[1], ALUOp[0], funct[1]);
-  ALUControl[2] = multiplexor2(ALUOp[1], TRUE, not_gate(funct[2]));
-  ALUControl[3] = multiplexor2(ALUOp[1], FALSE, and_gate(or_gate(funct[0], funct[1]), or_gate(funct[2], funct[3])));
+  ALUControl[3] = FALSE;
+  ALUControl[2] = multiplexor2(ALUOp[1], ALUOp[0], funct[1]);
+  ALUControl[1] = multiplexor2(ALUOp[1], TRUE, not_gate(funct[2]));
+  ALUControl[0] = multiplexor2(ALUOp[1], FALSE, and_gate(or_gate(funct[0], funct[1]), or_gate(funct[2], funct[3])));
 }
 
 void adder1(BIT A, BIT B, BIT CarryIn, BIT *CarryOut, BIT *Sum)
@@ -586,11 +586,11 @@ void ALU1(BIT *ALUControl, BIT A, BIT B, BIT CarryIn, BIT Less, BIT *Zero, BIT *
   BIT Op1 = ALUControl[1];
   BIT Op0 = ALUControl[0];
 
-  BIT Binvert = Op2; // Set binvert to second bit of opcode
+  BIT Binvert = Op2; // Set binvert to third bit of opcode
 
   BIT mux2 = multiplexor2(Binvert, B, not_gate(B));
   adder1(A, mux2, CarryIn, CarryOut, Set); // Set is the sum
-  *Result = multiplexor4(Op1, Op0, and_gate(A, mux2), or_gate(A, mux2), *Set, Less);
+  *Result = multiplexor4(Op0, Op1, and_gate(A, mux2), or_gate(A, mux2), *Set, Less);
   *Zero = not_gate(*Result);
 }
 
@@ -601,7 +601,7 @@ void ALU(BIT *ALUControl, BIT *Input1, BIT *Input2, BIT *Zero, BIT *Result)
   // Output: 32-bit result, and zero flag big
   // Note: Can re-use prior implementations (but need new circuitry for zero)
 
-  BIT Binvert = ALUControl[2]; // Set binvert to second bit of opcode
+  BIT Binvert = ALUControl[2]; // Set binvert to third bit of opcode
   BIT CarryIn = Binvert;
 
   BIT Set = UNDEF;
@@ -612,9 +612,11 @@ void ALU(BIT *ALUControl, BIT *Input1, BIT *Input2, BIT *Zero, BIT *Result)
 
   BIT tmpZero1 = TRUE; // Starting zero to see if all 32 bit alu outputs are 0
   BIT tmpZero2 = FALSE;
+  BIT CarryOut = FALSE;
   for (int i = 1; i < 32; i++)
   {
-    ALU1(ALUControl, Input1[i], Input2[i], CarryIn, FALSE, &tmpZero2, &Result[i], &CarryIn, &Set);
+    ALU1(ALUControl, Input1[i], Input2[i], CarryIn, FALSE, &tmpZero2, &Result[i], &CarryOut, &Set);
+    CarryIn = CarryOut;
     tmpZero1 = and_gate(tmpZero1, tmpZero2);
   }
   ALU1(ALUControl, Input1[0], Input2[0], CarryInFirst, Set, &tmpZero2, &Result[0], &CarryIn, &Set);
@@ -756,7 +758,6 @@ int main()
     print_instruction();
     updateState();
     print_state();
-    exit(1); // REMOVE
   }
 
   return 0;
