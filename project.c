@@ -730,7 +730,20 @@ void updateState()
   multiplexor2_32(and_gate(RegWrite, Jump), writeregister, REG_THIRTY_ONE, writeregister);
   Write_Register(RegWrite, writeregister, writedata);
 
+  BIT branchalu[32] = {FALSE};
+  ALU(ALUCtrlAdd, PC, inst16, &z, branchalu);
 
+  BIT jumpaddress[32] = {FALSE};
+  for (int i = 0; i < 26; ++i) {
+    jumpaddress[i] = instruction[i];
+  }
+  for (int i = 26; i < 32; ++i) {
+    jumpaddress[i] = PC[i];
+  }
+
+  BIT nextpc[32] = {FALSE};
+  multiplexor2_32(and_gate(Branch, zero), PC, branchalu, nextpc);
+  multiplexor2_32(Jump, nextpc, jumpaddress, PC);
 }
 
 /******************************************************************************/
