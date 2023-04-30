@@ -359,19 +359,19 @@ int get_instructions(BIT Instructions[][32])
       sscanf(line, "%s %s %s %d", instruction, reg1, reg2, &immediate_int); // Read in string
       convert_instruction_opcode(instruction, op);                          // Set Opcode
       // Set source and dest regs
-      convert_register_name(reg1, rs);
-      convert_register_name(reg2, rt);
+      convert_register_name(reg1, rt);
+      convert_register_name(reg2, rs);
       convert_to_binary_char(immediate_int, immediate, 16); // Set Address
 
       // Combine all fields and append to instructions
       for (int i = 0; i < 6; i++)
-        Instructions[instruction_count][i + 26] = op[i];
+        Instructions[instruction_count][i + 26] = op[5 - i];
       for (int i = 0; i < 5; i++) {
-        Instructions[instruction_count][i + 16] = rt[i];
-        Instructions[instruction_count][i + 21] = rs[i];
+        Instructions[instruction_count][i + 16] = rt[4 - i];
+        Instructions[instruction_count][i + 21] = rs[4 - i];
       }
       for (int i = 0; i < 16; i++)
-        Instructions[instruction_count][i] = immediate[i];
+        Instructions[instruction_count][i] = immediate[15 - i];
     }
 
     // Special case for jr ra (can be hardcoded)
@@ -385,11 +385,11 @@ int get_instructions(BIT Instructions[][32])
       convert_instruction_funct(instruction, funct);
 
       for (int i = 0; i < 6; ++i) {
-        Instructions[instruction_count][i + 26] = op[i];
-        Instructions[instruction_count][i] = funct[i];
+        Instructions[instruction_count][i + 26] = op[5 - i];
+        Instructions[instruction_count][i] = funct[5 - i];
       }
       for (int i = 0; i < 5; ++i) {
-        Instructions[instruction_count][i + 21] = rs[i];
+        Instructions[instruction_count][i + 21] = rs[4 - i];
       }
       for (int i = 0; i < 15; ++i) {
         Instructions[instruction_count][i + 6] = FALSE;
@@ -407,9 +407,9 @@ int get_instructions(BIT Instructions[][32])
 
       // Combine all fields and append to instructions
       for (int i = 0; i < 6; i++)
-        Instructions[instruction_count][i + 26] = op[i];
+        Instructions[instruction_count][i + 26] = op[5 - i];
       for (int i = 0; i < 26; i++)
-        Instructions[instruction_count][i] = address[i];
+        Instructions[instruction_count][i] = address[25 - i];
     }
 
     // IF Instruction is R-type:
@@ -422,22 +422,22 @@ int get_instructions(BIT Instructions[][32])
 
       sscanf(line, "%s %s %s %s", instruction, reg1, reg2, reg3); // Read in string
       // Set regs
-      convert_register_name(reg1, rs);
-      convert_register_name(reg2, rt);
-      convert_register_name(reg3, rd);
+      convert_register_name(reg1, rd);
+      convert_register_name(reg2, rs);
+      convert_register_name(reg3, rt);
       // Op-code is 000000 for all r-type
       convert_instruction_funct(instruction, funct);
 
       // Combine all fields and append to instructions
       for (int i = 0; i < 6; i++) {
-        Instructions[instruction_count][i + 26] = op[i];
-        Instructions[instruction_count][i] = funct[i];
+        Instructions[instruction_count][i + 26] = op[5 - i];
+        Instructions[instruction_count][i] = funct[5 - i];
       }
       for (int i = 0; i < 5; i++) {
-        Instructions[instruction_count][i + 16] = rt[i];
-        Instructions[instruction_count][i + 11] = rd[i];
-        Instructions[instruction_count][i + 21] = rs[i];
-        Instructions[instruction_count][i + 6] = shamt[i];
+        Instructions[instruction_count][i + 16] = rt[4 - i];
+        Instructions[instruction_count][i + 11] = rd[4 - i];
+        Instructions[instruction_count][i + 21] = rs[4 - i];
+        Instructions[instruction_count][i + 6] = shamt[4 - i];
       } 
     }
     instruction_count++;
@@ -756,6 +756,7 @@ int main()
     print_instruction();
     updateState();
     print_state();
+    exit(1); // REMOVE
   }
 
   return 0;
