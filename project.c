@@ -549,10 +549,9 @@ void Write_Register(BIT RegWrite, BIT *WriteRegister, BIT *WriteData)
   // Output: None, but will modify register file
   // Note: Implementation will again be similar to those above
   int index = fivebits_to_integer(WriteRegister);
-  for (int i = 0; i < 32; ++i)
-  {
-    MEM_Register[index][i] = multiplexor2(RegWrite, MEM_Register[index][i], WriteData[i]);
-  }
+  BIT output[32] = {FALSE};
+  multiplexor2_32(RegWrite, MEM_Register[index], WriteData, output);
+  copy_bits(output, MEM_Register[index]);
 }
 
 void ALU_Control(BIT *ALUOp, BIT *funct, BIT *ALUControl)
@@ -697,7 +696,7 @@ void updateState()
   ALU_Control(ALUOp, inst5_0, ALUControl);
 
   // Add 1 to PC
-  BIT ALUCtrlAdd[4] = {FALSE, FALSE, TRUE, FALSE};
+  BIT ALUCtrlAdd[4] = {FALSE, TRUE, FALSE, FALSE};
   BIT pcadd[32] = {FALSE};
   BIT z = FALSE;
   ALU(ALUCtrlAdd, PC, ONE, &z, pcadd);
