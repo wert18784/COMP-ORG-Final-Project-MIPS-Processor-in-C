@@ -131,6 +131,48 @@ void decoder2(BIT I0, BIT I1, BIT *O0, BIT *O1, BIT *O2, BIT *O3)
   return;
 }
 
+void decoder2_EN(BIT* I, BIT EN, BIT* O)
+{
+  BIT nI1 = not_gate(I[1]);
+  BIT nI0 = not_gate(I[0]);
+  O[0] = and_gate(nI1, nI0);
+  O[1] = and_gate(nI1, I[0]);
+  O[2] = and_gate(I[1], nI0);
+  O[3] = and_gate(I[1],  I[0]);
+  
+  // Note use of EN (enable) line below
+  for (int i = 0; i < 4; ++i)
+    O[i] = and_gate(EN, O[i]);
+}
+
+void decoder3(BIT* I, BIT EN, BIT* O)
+{
+  BIT n0 = not_gate(I[0]);
+  BIT n1 = not_gate(I[1]);
+  BIT n2 = not_gate(I[2]);
+  O[0] = and_gate(and_gate(n2, n1), n0);
+  O[1] = and_gate(and_gate(n2, n1), I[0]);
+  O[2] = and_gate(and_gate(n2, I[1]), n0);
+  O[3] = and_gate(and_gate(n2, I[1]), I[0]);
+  O[4] = and_gate(and_gate(I[2], n1), n0);
+  O[5] = and_gate(and_gate(I[2], n1), I[0]);
+  O[6] = and_gate(and_gate(I[2], I[1]), n0);
+  O[7] = and_gate(and_gate(I[2], I[1]), I[0]);
+
+  for (int i = 0; i < 8; ++i) {
+    O[i] = and_gate(O[i], EN);
+  }
+}
+
+void decoder5(BIT* I, BIT EN, BIT* O)
+{
+  BIT ENs[4] = {FALSE};
+  decoder2_EN(&I[3], EN, ENs);
+  for (int i = 0; i < 4; ++i) {
+    decoder3(I, ENs[i], &O[i * 8]);
+  }
+}
+
 BIT multiplexor2(BIT S, BIT I0, BIT I1)
 {
   BIT nS = not_gate(S);
@@ -209,20 +251,6 @@ void convert_to_binary_char(int a, char *A, int length)
       a /= 2;
     }
   }
-}
-
-int fivebits_to_integer(BIT *A)
-{
-  unsigned a = 0;
-  unsigned mult = 1;
-
-  for (int i = 0; i < 5; ++i)
-  {
-    a += A[i] * mult;
-    mult *= 2;
-  }
-
-  return (int)a;
 }
 
 int binary_to_integer(BIT *A)
@@ -506,7 +534,11 @@ void Instruction_Memory(BIT *ReadAddress, BIT *Instruction)
   // Input: 32-bit instruction address
   // Output: 32-bit binary instruction
   // Note: Useful to use a 5-to-32 decoder here
-  copy_bits(MEM_Instruction[binary_to_integer(ReadAddress)], Instruction);
+  BIT index[32] = {FALSE};
+  decoder5(ReadAddress, TRUE, index);
+  for (int i = 0; i < 32; ++i) {
+    multiplexor2_32(index[i], Instruction, MEM_Instruction[i], Instruction);
+  }
 }
 
 void Control(BIT *OpCode,
@@ -543,8 +575,15 @@ void Read_Register(BIT *ReadRegister1, BIT *ReadRegister2,
   // Input: two 5-bit register addresses
   // Output: the values of the specified registers in ReadData1 and ReadData2
   // Note: Implementation will be very similar to instruction memory circuit
-  copy_bits(MEM_Register[fivebits_to_integer(ReadRegister1)], ReadData1);
-  copy_bits(MEM_Register[fivebits_to_integer(ReadRegister2)], ReadData2);
+
+  BIT index1[32] = {FALSE};
+  BIT index2[32] = {FALSE};
+  decoder5(ReadRegister1, TRUE, index1);
+  decoder5(ReadRegister2, TRUE, index2);
+  for (int i = 0; i < 32; ++i) {
+    multiplexor2_32(index1[i], ReadData1, MEM_Register[i], ReadData1);
+    multiplexor2_32(index2[i], ReadData2, MEM_Register[i], ReadData2);
+  }
 }
 
 void Write_Register(BIT RegWrite, BIT *WriteRegister, BIT *WriteData)
@@ -553,10 +592,11 @@ void Write_Register(BIT RegWrite, BIT *WriteRegister, BIT *WriteData)
   // Input: one 5-bit register address, data to write, and control bit
   // Output: None, but will modify register file
   // Note: Implementation will again be similar to those above
-  int index = fivebits_to_integer(WriteRegister);
-  BIT output[32] = {FALSE};
-  multiplexor2_32(RegWrite, MEM_Register[index], WriteData, output);
-  copy_bits(output, MEM_Register[index]);
+  BIT index[32] = {FALSE};
+  decoder5(WriteRegister, TRUE, index);
+  for (int i = 0; i < 32; ++i) {
+    multiplexor2_32(and_gate(index[i], RegWrite), MEM_Register[i], WriteData, MEM_Register[i]);
+  }
 }
 
 void ALU_Control(BIT *ALUOp, BIT *funct, BIT *ALUControl)
@@ -627,7 +667,7 @@ void ALU(BIT *ALUControl, BIT *Input1, BIT *Input2, BIT *Zero, BIT *Result)
   ALU1(ALUControl, Input1[0], Input2[0], CarryInFirst, Set, &tmpZero2, &Result[0], &CarryIn, &Set);
   tmpZero1 = and_gate(tmpZero1, tmpZero2);
 
-  // Calculate Zero
+  // Set Zero
   *Zero = tmpZero1;
 }
 
@@ -638,13 +678,16 @@ void Data_Memory(BIT MemWrite, BIT MemRead,
   // Input: 32-bit address, control flags for read/write, and data to write
   // Output: data read if processing a lw instruction
   // Note: Implementation similar as above
-  int index = binary_to_integer(Address);
+  BIT index[32] = {FALSE};
+  decoder5(Address, TRUE, index);
+  for (int i = 0; i < 32; ++i) {
 
-  // IF READ: read 32-bit word from Address, and output to ReadData
-  multiplexor2_32(MemRead, ReadData, MEM_Data[index], ReadData);
+    // IF READ: read 32-bit word from Address, and output to ReadData
+    multiplexor2_32(and_gate(index[i], MemRead), ReadData, MEM_Data[i], ReadData);
 
-  // IF WRITE: write data in WriteData to memory location at address
-  multiplexor2_32(MemWrite, MEM_Data[index], WriteData, MEM_Data[index]);
+    // IF WRITE: write data in WriteData to memory location at address
+    multiplexor2_32(and_gate(index[i], MemWrite), MEM_Data[i], WriteData, MEM_Data[i]);
+  }
 }
 
 void Extend_Sign16(BIT *Input, BIT *Output)
@@ -661,7 +704,7 @@ void Extend_Sign16(BIT *Input, BIT *Output)
 void updateState()
 {
   // TODO: Implement the full datapath here
-  // Essentb    ially, you'll be figuring out the order in which to process each of
+  // Essentially, you'll be figuring out the order in which to process each of
   // the sub-circuits comprising the entire processor circuit. It makes it
   // easier to consider the pipelined version of the process, and handle things
   // in order of the pipeline. The stages and operations are:
@@ -700,10 +743,16 @@ void updateState()
   BIT readdata1[32] = {FALSE};
   BIT readdata2[32] = {FALSE};
   Read_Register(inst25_21, inst20_16, readdata1, readdata2);
-
+  // call control and make sure other bits work for JR
   ALU_Control(ALUOp, inst5_0, ALUControl);
   RegWrite = and_gate(RegWrite, not_gate(ALUControl[3]));
   Jump = or_gate(Jump, ALUControl[3]);
+
+  BIT jumpaddress[32] = {FALSE};
+  for (int i = 0; i < 26; ++i) {
+    jumpaddress[i] = instruction[i];
+  }
+  multiplexor2_32(ALUControl[3], jumpaddress, readdata1, jumpaddress);
 
   // EXECUTE
   BIT inst16[32] = {FALSE};
@@ -738,15 +787,6 @@ void updateState()
   // UPDATE PC
   BIT branchalu[32] = {FALSE};
   ALU(ALUCtrlAdd, PC, inst16, &z, branchalu);
-
-  BIT jumpaddress[32] = {FALSE};
-  for (int i = 0; i < 26; ++i) {
-    jumpaddress[i] = instruction[i];
-  }
-  for (int i = 26; i < 32; ++i) {
-    jumpaddress[i] = PC[i];
-  }
-  multiplexor2_32(ALUControl[3], jumpaddress, readdata1, jumpaddress);
 
   BIT nextpc[32] = {FALSE};
   multiplexor2_32(and_gate(Branch, zero), PC, branchalu, nextpc);
